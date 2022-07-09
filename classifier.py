@@ -186,6 +186,14 @@ def main():
     classifier.fit(X_train, y_train)
     y_pred = classifier.predict(X_test)
 
+    # save the model to disk
+    filename = 'knn_model.sav'
+    # pickle.dump(classifier, open(filename, 'wb'))
+
+    # load the model from disk
+    loaded_model = pickle.load(open(filename, 'rb'))
+    result = loaded_model.predict(X_test)
+
     cm = confusion_matrix(y_test, y_pred)
     ac = accuracy_score(y_test,y_pred)
 

@@ -11,7 +11,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import (confusion_matrix)
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import (KNeighborsClassifier)
-
+import pickle
 
 def get_data_from_json(file_name):
     data = open(file_name, 'r')
@@ -45,8 +45,8 @@ def create_report_with_class(single_raport, obj_class):
     initial_surplus_value = single_raport['initial_grid_surplus_value']
     initial_storage_value = single_raport['initial_storage_charge_value']
     generation_power = single_raport['generation_power']
-    weather_data_sec_window = list(single_raport['weather_data'].values())[12:]
-    sec_window_generation = calculate_time_window_photovoltaics_generation(weather_data_sec_window, generation_power)
+    weather_data_third_window = list(single_raport['weather_data'].values())[-13:]
+    third_window_generation = calculate_time_window_photovoltaics_generation(weather_data_third_window, generation_power)
     #-------------------------------------------------------------------------------------
 
     battery_charge = energy_storage_after_first_window / (total_storage_capacity + 0.00001), #this small value is to protect against division by zero
@@ -75,7 +75,7 @@ def create_report_with_class(single_raport, obj_class):
                 'exchange_price' : exchange_price_at_the_beginning,
                 'if_taken_from_storage' : if_taken_from_storage,
                 'if_taken_from_surplus' : if_taken_from_surplus,
-                # 'second_window_generation' :sec_window_generation,
+                'third_window_generation' :third_window_generation,
                 'class': obj_class}
 
     report = {
@@ -98,20 +98,20 @@ def get_reports_with_appropriate_classes(all_raports, classes, how_many_reports)
     for number_of_raport in range(0, main_loop_iterations):
         single_raport = all_raports[number_of_raport]
         grid_price = single_raport["public_grid_price"]
-        exchange_price = list(single_raport["exchange_data"].values())[0] #first value of list - we buy exchange energy at the begining of first window
-        sec_window_energy_from_public_grid = list(single_raport["public_grid_data"].values())[1]
+        exchange_price = list(single_raport["exchange_data"].values())[11] # Exchange energy price at the end of first window
+        third_window_energy_from_public_grid = list(single_raport["public_grid_data"].values())[2]
 
         if exchange_price < grid_price:
-            if sec_window_energy_from_public_grid < 0.001:
+            if third_window_energy_from_public_grid < 0.001:
                 raport_with_class = create_report_with_class(single_raport, '0.0')
                 raports_with_classes.append(raport_with_class)
             else:
                 for index in range (0, len(classes) - 1):
                     down_range = float(classes[index])
                     up_range = float(classes[index + 1])
-                    if down_range < sec_window_energy_from_public_grid <= up_range:
-                        down_diff = abs(down_range - sec_window_energy_from_public_grid)
-                        up_diff = abs(up_range - sec_window_energy_from_public_grid)
+                    if down_range < third_window_energy_from_public_grid <= up_range:
+                        down_diff = abs(down_range - third_window_energy_from_public_grid)
+                        up_diff = abs(up_range - third_window_energy_from_public_grid)
                         if down_diff < up_diff:
                             raport_with_class = create_report_with_class(single_raport, classes[index])
                             raports_with_classes.append(raport_with_class)
@@ -152,7 +152,7 @@ def create_classes_values(initial_value, max_value, step):
 
 
 def main():
-    NUMBER_OF_DATA_COLUMS_DATASET = 7
+    NUMBER_OF_DATA_COLUMS_DATASET = 8
 
     #---------------------------------set up parameters----------------------------------------------------------------
     nr_of_reports = int(input('enter the number of reports for the algorithm (type 0 for max): '))
@@ -163,7 +163,7 @@ def main():
     classes = create_classes_values(initial_value_of_class, max_value_of_class, step_of_class)
     #-------------------------------------------------------------------------------------------------------------------
    
-    all_data = get_data_from_json('random_data_5.json')
+    all_data = get_data_from_json('random_data_6.json')
     data = get_reports_with_appropriate_classes(all_data, classes, nr_of_reports)
     
     dataset =  pd.DataFrame.from_dict(data, orient='columns')
@@ -174,7 +174,7 @@ def main():
 
     # le = LabelEncoder()
     # X[:,0] = le.fit_transform(X[:,0]) #TODO THINK ABOUT IT!!!!  probably it is not necessary
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.02, random_state = 4) #random = None - for every run -> random data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.3, random_state = 4) #random = None - for every run -> random data
     sc = StandardScaler() 
 
 
@@ -184,21 +184,23 @@ def main():
     
     classifier = KNeighborsClassifier(n_neighbors = 8, metric = 'minkowski', p = 2) # TODO Think about this arguments in method KNN, read about it
     classifier.fit(X_train, y_train)
-    y_pred = classifier.predict(X_test)
 
     # save the model to disk
-    filename = 'knn_model.sav'
+    # filename = 'knn_model.sav'
     # pickle.dump(classifier, open(filename, 'wb'))
 
     # load the model from disk
-    loaded_model = pickle.load(open(filename, 'rb'))
-    result = loaded_model.predict(X_test)
+    # loaded_model = pickle.load(open(filename, 'rb'))
+    # result = loaded_model.predict(X_test)
+
+    y_pred = classifier.predict(X_test)
 
     cm = confusion_matrix(y_test, y_pred)
     ac = accuracy_score(y_test,y_pred)
 
     print('how much we should buy', y_test)
     print ('predicted how much we should buy: ', y_pred)
+    # print ('predicted how much we should buy (from file): ', result)
     print('accuracy ', ac)
     
     diff = 0
@@ -218,6 +220,8 @@ def main():
 
     if (if_show_neigbours_error_rate == '1'):
         show_error_rate(X_train, y_train, X_test, y_test)
+
+
 
 if __name__ == "__main__":
     main()

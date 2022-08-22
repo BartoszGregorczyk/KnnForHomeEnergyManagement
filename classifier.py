@@ -88,8 +88,20 @@ def create_report_with_class(single_raport, obj_class):
                 'class': obj_class}
     return report2
 
+def add_report_to_list(single_raport, class_type, raports_with_classes, zero_class_iterator, max_zero_class_number):
+    if class_type == '0.0':
+        if zero_class_iterator[0] <= max_zero_class_number:
+            zero_class_iterator[0] = zero_class_iterator[0] + 1
+            raport_with_class = create_report_with_class(single_raport, class_type)
+            raports_with_classes.append(raport_with_class)
+    else:
+        raport_with_class = create_report_with_class(single_raport, class_type)
+        raports_with_classes.append(raport_with_class)
+
 def get_reports_with_appropriate_classes(all_raports, classes, how_many_reports):
     raports_with_classes = []
+    zero_class_iterator = [1]
+    max_zero_class_number = 2500
 
     main_loop_iterations = how_many_reports
     if (how_many_reports == 0):
@@ -98,13 +110,12 @@ def get_reports_with_appropriate_classes(all_raports, classes, how_many_reports)
     for number_of_raport in range(0, main_loop_iterations):
         single_raport = all_raports[number_of_raport]
         grid_price = single_raport["public_grid_price"]
-        exchange_price = list(single_raport["exchange_data"].values())[11] # Exchange energy price at the end of first window
+        exchange_price = list(single_raport["exchange_data"].values())[12] # Exchange energy price at the begining of second window
         third_window_energy_from_public_grid = list(single_raport["public_grid_data"].values())[2]
 
         if exchange_price < grid_price:
             if third_window_energy_from_public_grid < 0.001:
-                raport_with_class = create_report_with_class(single_raport, '0.0')
-                raports_with_classes.append(raport_with_class)
+                add_report_to_list(single_raport, '0.0', raports_with_classes, zero_class_iterator, max_zero_class_number)
             else:
                 for index in range (0, len(classes) - 1):
                     down_range = float(classes[index])
@@ -113,19 +124,15 @@ def get_reports_with_appropriate_classes(all_raports, classes, how_many_reports)
                         down_diff = abs(down_range - third_window_energy_from_public_grid)
                         up_diff = abs(up_range - third_window_energy_from_public_grid)
                         if down_diff < up_diff:
-                            raport_with_class = create_report_with_class(single_raport, classes[index])
-                            raports_with_classes.append(raport_with_class)
+                            add_report_to_list(single_raport, classes[index], raports_with_classes, zero_class_iterator, max_zero_class_number)
                             break
                         else:
-                            raport_with_class = create_report_with_class(single_raport, classes[index + 1])
-                            raports_with_classes.append(raport_with_class)
+                            add_report_to_list(single_raport, classes[index + 1], raports_with_classes, zero_class_iterator, max_zero_class_number)
                             break
                     elif (index == len(classes) - 2):
-                        raport_with_class = create_report_with_class(single_raport, classes[index + 1])
-                        raports_with_classes.append(raport_with_class) 
+                        add_report_to_list(single_raport, classes[index + 1], raports_with_classes, zero_class_iterator, max_zero_class_number) 
         else:
-            raport_with_class = create_report_with_class(single_raport, '0.0')
-            raports_with_classes.append(raport_with_class)
+            add_report_to_list(single_raport, '0.0', raports_with_classes, zero_class_iterator, max_zero_class_number)
     return raports_with_classes
 
 def show_error_rate(train_x, train_y, test_x, test_y):
@@ -139,9 +146,9 @@ def show_error_rate(train_x, train_y, test_x, test_y):
 
     plt.plot(range(1, 10), error, color='red', linestyle='dashed', marker='o',
             markerfacecolor='blue', markersize=10)
-    plt.title('Error Rate K Value')
-    plt.xlabel('K Value')
-    plt.ylabel('Mean Error')
+    plt.xlabel('Parametr k')
+    plt.ylabel('Średni błąd klasyfikacji')
+    plt.title('Średni błąd klasyfikacji w zależności od liczby sąsiadów')
     plt.show()
 
 def create_classes_values(initial_value, max_value, step):
@@ -150,6 +157,28 @@ def create_classes_values(initial_value, max_value, step):
         classes.append(str(round(i,2)))
     return classes
 
+def show_accuracy_figure(y_test, y_pred):
+    barWidth = 0.25
+    y_test = y_test[:35]
+    y_pred = y_pred[:35]
+    x = []
+    for i in range (0,len(y_test)):
+        x.append(i)
+
+    br1 = np.arange(len(y_test))
+    br2 = [n + barWidth for n in br1]
+
+    plt.bar(br1, [float(x) for x in y_test], width = barWidth, label = 'Wartość rzeczywista')
+    plt.bar(br2, [float(x) for x in y_pred],  width = barWidth,label = 'Wartość przewidziana')
+
+    plt.xticks([r + barWidth/2 for r in range(len(y_pred))],
+        x)
+
+    plt.title('Ilość energii elektrycznej, którą należy zakupić na giełdzie energii [kWh]')
+    plt.xlabel('Numer przypadku testowego')
+    plt.ylabel('Energia [kWh]')
+    plt.legend()
+    plt.show()
 
 def main():
     NUMBER_OF_DATA_COLUMS_DATASET = 8
@@ -163,7 +192,7 @@ def main():
     classes = create_classes_values(initial_value_of_class, max_value_of_class, step_of_class)
     #-------------------------------------------------------------------------------------------------------------------
    
-    all_data = get_data_from_json('random_data_6.json')
+    all_data = get_data_from_json('random_data_7.json')
     data = get_reports_with_appropriate_classes(all_data, classes, nr_of_reports)
     
     dataset =  pd.DataFrame.from_dict(data, orient='columns')
@@ -174,7 +203,7 @@ def main():
 
     # le = LabelEncoder()
     # X[:,0] = le.fit_transform(X[:,0]) #TODO THINK ABOUT IT!!!!  probably it is not necessary
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.3, random_state = 4) #random = None - for every run -> random data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.008, random_state = None) #random = None - for every run -> random data //4 
     sc = StandardScaler() 
 
 
@@ -198,8 +227,8 @@ def main():
     cm = confusion_matrix(y_test, y_pred)
     ac = accuracy_score(y_test,y_pred)
 
-    print('how much we should buy', y_test)
-    print ('predicted how much we should buy: ', y_pred)
+    print('wartość energii, którą należy kupić:\n', y_test)
+    print ('klasyfikacja algorytmu co do wartości energii, którą należy kupić:\n ', y_pred)
     # print ('predicted how much we should buy (from file): ', result)
     print('accuracy ', ac)
     
@@ -221,7 +250,7 @@ def main():
     if (if_show_neigbours_error_rate == '1'):
         show_error_rate(X_train, y_train, X_test, y_test)
 
-
+    #show_accuracy_figure(y_test, y_pred)
 
 if __name__ == "__main__":
     main()
